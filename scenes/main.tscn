@@ -1,0 +1,78 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/level_wetland.tscn" id="2_level"]
+[ext_resource type="Script" path="res://src/Game/WaterVoxelRenderer.cs" id="3_voxels"]
+[ext_resource type="Script" path="res://src/Game/SimulationNode.cs" id="4_sim"]
+[ext_resource type="Resource" path="res://params/default_sim_params.tres" id="5_params"]
+[ext_resource type="Shader" path="res://shaders/do_voxel.gdshader" id="6_shader"]
+[ext_resource type="Texture2D" path="res://assets/do_gradient.tres" id="7_gradient"]
+[ext_resource type="Script" path="res://scripts/orbit_camera.gd" id="8_camera"]
+[ext_resource type="Script" path="res://scripts/placement_tool.gd" id="9_placement"]
+[ext_resource type="Script" path="res://scripts/fountain_visuals.gd" id="10_fountain"]
+[ext_resource type="Script" path="res://scripts/slice_controller.gd" id="11_slice"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="12_hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_main"]
+sky_top_color = Color(0.32, 0.52, 0.78, 1)
+sky_horizon_color = Color(0.7, 0.77, 0.84, 1)
+ground_bottom_color = Color(0.28, 0.3, 0.27, 1)
+ground_horizon_color = Color(0.7, 0.77, 0.84, 1)
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_main")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_energy = 0.7
+tonemap_mode = 2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_voxels"]
+render_priority = 0
+shader = ExtResource("6_shader")
+shader_parameter/gradient = ExtResource("7_gradient")
+shader_parameter/max_do = 14.0
+shader_parameter/emission_strength = 0.2
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8192, -0.4699, 0.329, 0, 0.5736, 0.8192, -0.5736, -0.6711, 0.4699, 0, 40, 0)
+shadow_enabled = true
+
+[node name="Level" parent="." instance=ExtResource("2_level")]
+
+[node name="WaterVoxels" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("3_voxels")
+VoxelMaterial = SubResource("ShaderMaterial_voxels")
+
+[node name="Simulation" type="Node" parent="." node_paths=PackedStringArray("Level", "Renderer")]
+script = ExtResource("4_sim")
+Level = NodePath("../Level")
+Renderer = NodePath("../WaterVoxels")
+Params = ExtResource("5_params")
+
+[node name="Camera" type="Camera3D" parent="."]
+current = true
+far = 1000.0
+script = ExtResource("8_camera")
+
+[node name="PlacementTool" type="Node" parent="." node_paths=PackedStringArray("simulation", "camera")]
+script = ExtResource("9_placement")
+simulation = NodePath("../Simulation")
+camera = NodePath("../Camera")
+
+[node name="FountainVisuals" type="Node3D" parent="."]
+script = ExtResource("10_fountain")
+
+[node name="SliceController" type="Node3D" parent="."]
+script = ExtResource("11_slice")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("12_hud")

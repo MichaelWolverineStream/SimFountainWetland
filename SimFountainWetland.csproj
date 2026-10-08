@@ -1,0 +1,13 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SimFountainWetland</RootNamespace>
+    <!-- SimCore and tests are separate projects nested under the Godot project root. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);src/SimCore/**;tests/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="src/SimCore/SimCore.csproj" />
+  </ItemGroup>
+</Project>

@@ -14,6 +14,7 @@ Thumbs.db
 export.cfg
 export_credentials.cfg
 *.tmp
+.vscode/
 
 # Imported translations (automatically generated from CSV files)
 *.translation
@@ -22,6 +23,13 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# .NET build outputs
+bin/
+obj/
+TestResults/
+.vs/
+*.user
 
 # Export outputs
 *.exe
