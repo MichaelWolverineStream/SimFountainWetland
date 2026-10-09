@@ -44,4 +44,20 @@ public class VoxelGridTests
         Assert.Equal(bottom, grid.Neighbors[bottom * 6 + VoxelGrid.NegX]);
         Assert.Equal(-1, grid.ColumnTop(0, 0));
     }
+
+    [Fact]
+    public void ColumnMeansAverageEachWaterColumn()
+    {
+        var grid = TestGrids.Box(5, 5, 4);
+        var values = new float[grid.WaterCount];
+        for (int i = 0; i < values.Length; i++) values[i] = grid.DepthLayer[i];
+        var means = new float[grid.SizeX * grid.SizeZ];
+
+        grid.ColumnMeans(values, means);
+
+        Assert.Equal(1.5f, means[2 + grid.SizeX * 2], 5);
+        Assert.Equal(1.5f, means[1 + grid.SizeX * 3], 5);
+        Assert.True(float.IsNaN(means[0]));
+        Assert.True(float.IsNaN(means[4 + grid.SizeX * 2]));
+    }
 }

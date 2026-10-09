@@ -3,7 +3,7 @@ extends SceneTree
 ## Renders the game and saves screenshots for visual checks (needs Godot .NET and a display):
 ##   $GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw
 ## Writes <prefix>_report.png (comparison report: no fountains vs three), _overview.png
-## (fountains running, 13:00), _nature.png (Nature water view), _closeup.png, _jetty.png, _field.png,
+## (Nature view, fountains running, 13:00), _oxygen.png (Oxygen view), _closeup.png, _jetty.png, _field.png,
 ## _pond.png and _heron.png (props and critters), _night.png (22:00) and _slice.png (cross-section
 ## at the first pump).
 
@@ -55,7 +55,9 @@ func _run() -> void:
 
 	main.hud.toggle_water_view()
 	await _frames(40)
-	await _save(prefix + "_nature.png")
+	await _save(prefix + "_oxygen.png")
+	main.hud.toggle_water_view()
+	await _frames(20)
 
 	var camera: Camera3D = main.get_node("Camera")
 	_aim(camera, -35.0, 32.0, 34.0, Vector3(pump_column.x - 4, 12.0, pump_column.y + 6))

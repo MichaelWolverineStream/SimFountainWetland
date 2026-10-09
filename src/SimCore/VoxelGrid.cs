@@ -17,6 +17,7 @@ public sealed class VoxelGrid
     readonly int[] _gridToWater;
     readonly int[] _columnTop;
     readonly int[] _columnBottom;
+    readonly int[] _columnCells;
 
     VoxelGrid(int sizeX, int sizeY, int sizeZ, int waterLevelY, float cellHeightM, bool[] isWater)
     {
@@ -39,10 +40,12 @@ public sealed class VoxelGrid
         SideBedFaces = new byte[n];
         DepthLayer = new int[n];
         DepthM = new float[n];
+        _columnCells = new int[sizeX * sizeZ];
         int minY = waterLevelY;
         for (int i = 0; i < n; i++)
         {
             var p = GridCoords(WaterToGrid[i]);
+            _columnCells[p.X + sizeX * p.Z]++;
             for (int d = 0; d < 6; d++)
             {
                 var (dx, dy, dz) = Directions[d];
@@ -154,6 +157,19 @@ public sealed class VoxelGrid
             cells.Add(cell);
         }
         return [.. cells];
+    }
+
+    // Mean of per-water-cell values over each (x, z) column, indexed x + SizeX * z; NaN where there is no water.
+    public void ColumnMeans(ReadOnlySpan<float> values, Span<float> means)
+    {
+        int columns = SizeX * SizeZ;
+        if (values.Length != WaterCount || means.Length != columns)
+            throw new ArgumentException("Expected one value per water cell and one mean per column.");
+        means.Clear();
+        for (int i = 0; i < values.Length; i++)
+            means[WaterToGrid[i] % columns] += values[i];
+        for (int c = 0; c < columns; c++)
+            means[c] = _columnCells[c] > 0 ? means[c] / _columnCells[c] : float.NaN;
     }
 
     bool InColumns(int x, int z) => x >= 0 && x < SizeX && z >= 0 && z < SizeZ;

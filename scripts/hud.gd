@@ -53,7 +53,7 @@ var _right_scroll: ScrollContainer
 var _fit_queued := false
 var _legend: Control
 var _view_buttons: Array[Button] = []
-var _nature_view := false
+var _nature_view := true
 var _ui_size: OptionButton
 var _stage_label: Label
 var _hint_label: Label
@@ -120,6 +120,7 @@ func _ready() -> void:
 	_build_left_panel()
 	_build_right_panel()
 	_build_bottom_bar(column)
+	_update_legend()
 	_report = ReportPanel.new()
 	_root.add_child(_report)
 	_report.make_baseline_pressed.connect(make_baseline_pressed.emit)
@@ -136,6 +137,7 @@ func _ready() -> void:
 func set_status(title: String, hint: String) -> void:
 	_stage_label.text = title
 	_hint_label.text = hint
+	_hint_label.visible = not hint.is_empty()
 
 
 ## Measuring swaps Set baseline / Compare for Stop; Compare needs a baseline.
@@ -259,14 +261,14 @@ func update_fountains(units: Array, selected_id: int, totals: Dictionary, max_un
 		_lpm_slider.set_value_no_signal(selected.lpm)
 	_update_lpm_label()
 	_update_fountain_buttons()
-	_fountain_label.text = _unit_details(selected) if _has_selection else (
-		"Select a fountain to tune it, or click its pump or sprayer in the water." if _has_units
-		else "No fountains yet. Add one, click deep water for the pump, then click where the spray should land.")
+	_fountain_label.visible = _has_selection
+	if _has_selection:
+		_fountain_label.text = _unit_details(selected)
 	var count: int = totals.get("count", 0)
 	_totals_label.visible = count > 0
 	if count > 0:
-		var power: float = totals.power_kw
-		_totals_label.text = "All fountains: %d running, %d L/min\n%.2f kW, %.1f kWh/day" % [totals.active, roundi(totals.total_lpm), power, power * 24.0]
+		_totals_label.text = "All fountains: %d running, %d L/min, %.1f kWh/day" % [
+			totals.active, roundi(totals.total_lpm), totals.power_kw * 24.0]
 
 
 ## m: a measurement snapshot from main.gd, or {} when there is no baseline yet.
@@ -402,6 +404,7 @@ func _build_left_panel() -> void:
 	_fountain_label.add_theme_font_size_override("font_size", SMALL_SIZE)
 	_fountain_label.add_theme_color_override("font_color", MUTED)
 	_totals_label = _label(box, "")
+	_totals_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_totals_label.add_theme_font_size_override("font_size", SMALL_SIZE)
 	update_fountains([], -1, {}, 8)
 
@@ -433,7 +436,7 @@ func _build_left_panel() -> void:
 			if on:
 				_set_nature_view(i == 1))
 		_view_buttons.append(button)
-	_view_buttons[0].set_pressed_no_signal(true)
+	_view_buttons[1].set_pressed_no_signal(true)
 	_ui_size = _option(box, "UI size", UI_SIZES, 1)
 	_ui_size.item_selected.connect(_on_ui_size_selected)
 
@@ -815,9 +818,8 @@ func _unit_text(number: int, unit: Dictionary) -> String:
 
 func _unit_details(unit: Dictionary) -> String:
 	if not (unit.has_pump and unit.has_sprayer):
-		return "Fountain %d is missing its %s." % [unit.number, "pump" if not unit.has_pump else "sprayer"]
-	return "Fountain %d: pipe %.1f m, head %.2f m\n%.2f kW (%.1f kWh/day), pump zone %.1f cells" % [
-		unit.number, unit.pipe_length_m, unit.head_m, unit.power_kw, unit.power_kw * 24.0, unit.pump_zone_radius]
+		return "Fountain %d: needs a %s" % [unit.number, "pump" if not unit.has_pump else "sprayer"]
+	return "Fountain %d: %.1f kWh/day" % [unit.number, unit.power_kw * 24.0]
 
 
 func _update_fountain_buttons() -> void:

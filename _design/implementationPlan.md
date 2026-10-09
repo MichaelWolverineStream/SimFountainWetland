@@ -239,6 +239,14 @@ This phase replaces the pass/fail scoring of Phase 6 (the target, the pass strea
    - `sky_details.gd`: clouds drifting with the wind outside the level (dither fade in `cloud.gdshader` when between the camera and the level) and a star dome (`star.gdshader`). `day_night.gd` emits `daylight_changed`.
 4. **Verification:** `smoke_test.gd` covers measurements, the report, environment-only comparisons (`compare_season=`), many units (`units=`), the unit limit and the new scenery. `screenshot.gd` adds report, jetty, field, pond and heron views.
 
+### Phase 10 — Cleaner HUD and column-average Oxygen surface
+
+1. **HUD:** no hint line before a baseline exists. The fountain panel shows one line for the selected unit (`Fountain N: X kWh/day`, or what it still needs) and one totals line (`All fountains: A running, L L/min, K kWh/day`); both hide when there is nothing to show.
+2. **Nature by default:** the `water_view` shader global, `main.gd` and the HUD all start at Nature; the DO legend starts hidden.
+3. **Oxygen surface:** `VoxelGrid.ColumnMeans` averages DO over each (x, z) column. `WaterVoxelRenderer` uploads the means to a half-float `column_do` texture (g = 1 where wet) and `do_voxel.gdshader` colours unsliced top faces with the bilinear `r / g`, so the surface blends smoothly between columns without bleeding into the shore. Slicing still shows per-voxel DO.
+4. **Fix:** the column depth in `INSTANCE_CUSTOM.g` was computed from compact water indices (`top - bottom + 1`), so every column deeper than one cell got the deep Nature colour. It is now `DepthLayer[bottom] + 1`.
+5. **Verification:** new smoke checks for the start view, the hint, the fountain lines and the bound `column_do` texture; `screenshot.gd` now saves `_overview.png` in Nature view and `_oxygen.png` instead of `_nature.png`.
+
 ## 5. Verification
 
 1. **Phase 0:** `dotnet build SimFountainWetland.sln`; `dotnet test`; Godot run prints `.NET 10.0.x`.
@@ -259,7 +267,7 @@ This phase replaces the pass/fail scoring of Phase 6 (the target, the pass strea
 4. **Manual:** level loads and reports water-cell count; stratification forms; slice is a clean cut; placement snaps; kW responds to depth and LPM; PASS/FAIL updates; 60 FPS at 16×.
 5. **Automated in-engine (Godot .NET):**
    - `$GODOT4 --headless --path . --script res://tools/smoke_test.gd -- 1000 2000 3000 [season=1 wind=0 bloom=0 sprayer_distance=1 PumpZoneLpmPerRadius=100]` runs the whole game flow and prints the results.
-   - `$GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw` saves overview, nature, close-up, night and cross-section screenshots.
+   - `$GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw` saves overview (Nature), oxygen, close-up, night and cross-section screenshots.
 
 ## 6. Further considerations
 

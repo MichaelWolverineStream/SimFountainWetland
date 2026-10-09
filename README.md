@@ -98,9 +98,9 @@ The repository does not contain an `export_presets.cfg`.
 
 | What | Command |
 |---|---|
-| Unit tests (SimCore, xUnit, 35 tests) | `dotnet test tests/SimCore.Tests/SimCore.Tests.csproj` |
+| Unit tests (SimCore, xUnit, 36 tests) | `dotnet test tests/SimCore.Tests/SimCore.Tests.csproj` |
 | Full game flow, headless | `$GODOT4 --headless --path . --script res://tools/smoke_test.gd -- 1500 2500` |
-| Screenshots (report, overview, nature, close-ups, night, cross-section) | `$GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw` |
+| Screenshots (report, overview, oxygen, close-ups, night, cross-section) | `$GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw` |
 | GDScript parse check (any Godot 4.7) | `$GODOT4 --headless --path . --check-only --script res://scripts/main.gd` |
 
 The smoke test plays the whole game in a few seconds:
@@ -110,9 +110,9 @@ The smoke test plays the whole game in a few seconds:
 3. Compares each flow rate given on the command line (in L/min) against the baseline.
 4. Prints the measured statistics and the change from the baseline for each flow.
 
-It also checks the fountain list (add, select, move, remove, the unit limit), the report, the camera input (wheel, pinch, trackpad scroll, Option+drag, Home) and the scenery (props, ducks, critters, clouds, stars, lamps and fireflies at night, water view toggle). Any failed check makes it exit with code 1.
+It also checks the fountain list and info lines (add, select, move, remove, the unit limit), the report, the camera input (wheel, pinch, trackpad scroll, Option+drag, Home) and the scenery (props, ducks, critters, clouds, stars, lamps and fireflies at night, Nature as the start view and the water view toggle). Any failed check makes it exit with code 1.
 
-The screenshot tool writes `<prefix>_report.png`, `_overview.png`, `_nature.png`, `_closeup.png`, `_jetty.png`, `_field.png`, `_pond.png`, `_heron.png`, `_night.png` and `_slice.png`. It needs a window (not `--headless`).
+The screenshot tool writes `<prefix>_report.png`, `_overview.png` (Nature view), `_oxygen.png`, `_closeup.png`, `_jetty.png`, `_field.png`, `_pond.png`, `_heron.png`, `_night.png` and `_slice.png`. It needs a window (not `--headless`).
 
 You can add these options after the flow rates:
 
@@ -137,7 +137,7 @@ You can place up to 8 fountain units. Each unit is a pump and a sprayer with its
 
 - **Add fountain**, then click a water column for the pump (it sits on the bottom of that column), then click where the spray should land.
 - Select a unit in the list, or click its pump or sprayer in the 3D view. **Move pump**, **Move sprayer** and **Remove** act on the selected unit; **Clear all** removes every unit.
-- The flow slider (0–3000 L/min) sets the selected unit's flow. Head, power and the pump-zone ring update live, and the list shows the total flow and power.
+- The flow slider (0–3000 L/min) sets the selected unit's flow. Its daily energy and the pump-zone ring update live; the line below shows how many units run, their total flow and their daily energy.
 
 ### Controls
 
@@ -148,13 +148,13 @@ You can place up to 8 fountain units. Each unit is a pump and a sprayer with its
 | R / F | Tilt the camera |
 | Middle mouse drag, Shift + left drag, Shift + two-finger scroll, WASD or arrow keys | Pan |
 | Home | Reset the view |
-| V | Switch the water between **Oxygen** (DO colours) and **Nature** (pond colours) |
+| V | Switch the water between **Nature** (pond colours, the default) and **Oxygen** (DO colours) |
 | Left click | Place a pump or sprayer (in placement mode), or select the unit at that spot |
 | Esc | Cancel placement, or close the report |
 | Pause / 1x / 4x / 16x | Simulation speed (1 tick = 1 simulated hour) |
 | **Slice along X** + slider | Cut the diorama to see the DO stratification; **Flip side** shows the other half |
 
-In **Oxygen** view, voxel colours run from red (no oxygen) through yellow and green to blue (about 14 mg/L). The legend and the depth-profile bars are in the HUD. **Nature** view shows the pond as water, darker where it is deeper.
+The game starts in **Nature** view, which shows the pond as water, darker where it is deeper. In **Oxygen** view, colours run from red (no oxygen) through yellow and green to blue (about 14 mg/L). From above, the water surface shows the average DO of each water column, blended smoothly between columns; slice the diorama to see the DO of every voxel. The legend and the depth-profile bars are in the HUD.
 
 The **UI size** menu (Small, Medium, Large, Extra large) scales only the HUD. Your choice is saved in `user://settings.cfg`. On high-DPI screens the window opens sized to the display.
 

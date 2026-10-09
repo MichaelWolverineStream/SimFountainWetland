@@ -1,7 +1,8 @@
 shader_type spatial;
 
 // Water voxel with whole-cell X slicing.
-// Oxygen view: coloured by dissolved oxygen (INSTANCE_CUSTOM.r, mg/L).
+// Oxygen view: coloured by dissolved oxygen (INSTANCE_CUSTOM.r, mg/L); unsliced, the surface shows
+// the depth-averaged DO of each column from column_do (r = mean, g = 1 where wet), blended between columns.
 // Nature view (global water_view = 1, ignored while slicing): clear water tinted by depth, with
 // animated ripples and sparkles. INSTANCE_CUSTOM.g = column depth, .b = depth below the surface (cells).
 #include "res://shaders/slice_clip.gdshaderinc"
@@ -9,6 +10,9 @@ shader_type spatial;
 global uniform float water_view;
 
 uniform sampler2D gradient : source_color, repeat_disable, filter_linear;
+uniform sampler2D column_do : hint_default_black, repeat_disable, filter_linear;
+uniform vec2 column_origin = vec2(0.0);
+uniform vec2 column_size = vec2(1.0);
 uniform float max_do = 14.0;
 uniform float emission_strength : hint_range(0.0, 1.0) = 0.2;
 uniform vec4 shallow_color : source_color = vec4(0.30, 0.74, 0.76, 1.0);
@@ -53,8 +57,14 @@ void vertex() {
 
 void fragment() {
 	float nature = slice_enabled ? 0.0 : clamp(water_view, 0.0, 1.0);
-	vec3 oxygen = texture(gradient, vec2(clamp(v_do / max_do, 0.0, 1.0), 0.5)).rgb;
 	bool top = v_normal.y > 0.5 && v_depth < 0.5;
+	float do_value = v_do;
+	if (top && !slice_enabled) {
+		// Dividing by the wet weight keeps dry neighbours out of the blend at the shore.
+		vec2 column = texture(column_do, (v_world.xz - column_origin) / column_size).rg;
+		do_value = column.g > 0.001 ? column.r / column.g : v_do;
+	}
+	vec3 oxygen = texture(gradient, vec2(clamp(do_value / max_do, 0.0, 1.0), 0.5)).rgb;
 
 	float sparkle = 0.0;
 	if (top) {

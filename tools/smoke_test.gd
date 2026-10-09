@@ -48,12 +48,19 @@ func _run() -> void:
 
 	_check(main.mode == Main.Mode.LIVE and main.baseline.is_empty(), "starts live without a baseline")
 	_check(main.hud._compare_button.disabled, "compare disabled without a baseline")
+	_check(main.hud.is_nature_view() and main._water_view == 1.0, "starts in nature view")
+	_check(not main.hud._hint_label.visible, "no hint before a baseline")
+	var column_do: Texture2D = sim.Renderer.VoxelMaterial.get_shader_parameter("column_do")
+	var grid_size: Vector3i = sim.GetGridSize()
+	_check(column_do is ImageTexture and column_do.get_width() == grid_size.x and column_do.get_height() == grid_size.z,
+			"column DO texture bound")
 	main._on_environment_changed(options.season, options.wind, options.rain == 1, options.bloom == 1)
 	main._start_measure(Main.Mode.MEASURE_BASELINE)
 	_check(main.hud._stop_button.visible and not main.hud._baseline_button.visible, "stop shown while measuring")
 	if not await _wait_live(main):
 		return
 	_check(not main.baseline.is_empty() and not main.hud._compare_button.disabled, "baseline recorded")
+	_check(main.hud._hint_label.visible, "baseline hint shown")
 	print("Baseline (season %d, wind %d, rain %d, bloom %d): %s" % [options.season, options.wind, options.rain, options.bloom, _describe(main.baseline)])
 
 	_camera_checks(main)
@@ -75,6 +82,11 @@ func _run() -> void:
 	_click_select(main, pumps[0])
 	var first_id: int = sim.GetFountains()[0].id
 	_check(main.selected_id == first_id, "click on a pump selects its unit")
+	var details: String = main.hud._fountain_label.text
+	_check(main.hud._fountain_label.visible and details.begins_with("Fountain 1: ") and details.ends_with("kWh/day"),
+			"selected unit shows its daily energy")
+	var totals_text: String = main.hud._totals_label.text
+	_check(totals_text.begins_with("All fountains: ") and not "\n" in totals_text, "one-line fountain totals")
 	main.slice.set_slice(true, pumps[0].x, false)
 
 	for lpm in flows:
@@ -103,6 +115,7 @@ func _run() -> void:
 	_check(sim.GetFountainTotals().count == pumps.size() - 1, "remove selected unit")
 	main._on_clear_fountains()
 	_check(sim.GetFountainTotals().count == 0 and main.fountain_visuals.get_unit_count() == 0, "clear all units")
+	_check(not main.hud._fountain_label.visible and not main.hud._totals_label.visible, "fountain info hidden without units")
 
 	if _failures > 0:
 		_fail("%d check(s) failed" % _failures)
@@ -304,9 +317,9 @@ func _scene_checks(main: Main) -> void:
 	_check(not main.day_night.is_night() and not main.decor._fireflies.emitting, "day without fireflies")
 	_check(not lamps.visible and not main.sky._stars.visible and main.critters._butterflies.visible, "day: lamps off, no stars, butterflies out")
 	main.hud.toggle_water_view()
-	_check(main.hud.is_nature_view(), "nature view toggle")
-	main.hud.toggle_water_view()
 	_check(not main.hud.is_nature_view(), "oxygen view toggle")
+	main.hud.toggle_water_view()
+	_check(main.hud.is_nature_view(), "nature view toggle")
 
 
 func _click_event(main: Main, column: Vector2i) -> InputEventMouseButton:

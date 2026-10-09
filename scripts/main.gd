@@ -35,7 +35,7 @@ var _days_run := 0
 var _adding := false
 var _adding_id := -1
 var _lpm := 0.0
-var _water_view := 0.0
+var _water_view := 1.0
 var _water_view_tween: Tween
 
 @onready var simulation: Node = $Simulation
@@ -91,7 +91,7 @@ func _ready() -> void:
 	day_night.daylight_changed.connect(decor.set_daylight)
 	day_night.daylight_changed.connect(critters.set_daylight)
 	day_night.daylight_changed.connect(sky.set_daylight)
-	_set_water_view(0.0)
+	_set_water_view(1.0)
 
 	var origin: Vector3i = simulation.GetGridOrigin()
 	var grid_size: Vector3i = simulation.GetGridSize()
@@ -218,7 +218,7 @@ func _update_status() -> void:
 			hud.set_status("Measuring comparison", _measure_hint())
 		_:
 			if baseline.is_empty():
-				hud.set_status("Explore", "Pick the conditions and fountains, then press Set baseline to measure a reference.")
+				hud.set_status("Explore", "")
 			else:
 				hud.set_status("Explore", "Baseline: %s, %s. Change anything, then press Compare with baseline." % [
 					baseline.environment_text, baseline.fountain_text.to_lower()])
