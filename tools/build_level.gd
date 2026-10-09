@@ -5,6 +5,7 @@ extends SceneTree
 ## in the GridMap editor; re-running overwrites both files.
 ##
 ## Run: godot --headless --path . --script res://tools/build_level.gd [-- --preview /tmp/level.png]
+##      add --tiles-only to regenerate just the MeshLibrary (keeps hand edits to the level).
 
 const SIZE_X := 96
 const SIZE_Z := 64
@@ -21,18 +22,21 @@ const GUIDE_PATH := "res://assets/guides/aerial_photo.jpeg"
 
 enum Tile { GRASS, MEADOW, FIELD, SOIL, MUD, ISLAND, PATH, HEDGE, ROAD, POND }
 
-const TILE_COLORS := {
-	Tile.GRASS: Color(0.36, 0.60, 0.24),
-	Tile.MEADOW: Color(0.47, 0.70, 0.30),
-	Tile.FIELD: Color(0.52, 0.42, 0.30),
-	Tile.SOIL: Color(0.38, 0.25, 0.16),
-	Tile.MUD: Color(0.13, 0.11, 0.10),
-	Tile.ISLAND: Color(0.52, 0.62, 0.33),
-	Tile.PATH: Color(0.66, 0.62, 0.54),
-	Tile.HEDGE: Color(0.15, 0.36, 0.15),
-	Tile.ROAD: Color(0.30, 0.30, 0.32),
-	Tile.POND: Color(0.22, 0.42, 0.62),
+# Parameters for shaders/terrain_clip.gdshader. pattern: 0 plain, 1 grass, 2 meadow, 3 field,
+# 4 soil, 5 gravel, 6 asphalt, 7 pond, 8 leaves. band = grass band down the tile sides.
+const TILE_STYLES := {
+	Tile.GRASS: {"albedo": Color(0.47, 0.76, 0.29), "accent": Color(0.36, 0.63, 0.22), "pattern": 1, "band": 0.3},
+	Tile.MEADOW: {"albedo": Color(0.58, 0.82, 0.33), "accent": Color(0.45, 0.70, 0.26), "pattern": 2, "band": 0.3},
+	Tile.FIELD: {"albedo": Color(0.80, 0.80, 0.38), "accent": Color(0.60, 0.72, 0.28), "pattern": 3, "band": 0.3},
+	Tile.SOIL: {"albedo": Color(0.52, 0.34, 0.21), "accent": Color(0.42, 0.27, 0.17), "pattern": 4},
+	Tile.MUD: {"albedo": Color(0.42, 0.38, 0.34), "accent": Color(0.58, 0.55, 0.50), "pattern": 5},
+	Tile.ISLAND: {"albedo": Color(0.44, 0.72, 0.30), "accent": Color(0.34, 0.60, 0.22), "pattern": 2, "band": 0.3},
+	Tile.PATH: {"albedo": Color(0.86, 0.78, 0.62), "accent": Color(0.72, 0.64, 0.50), "pattern": 5},
+	Tile.HEDGE: {"albedo": Color(0.22, 0.52, 0.24), "accent": Color(0.32, 0.64, 0.30), "pattern": 8},
+	Tile.ROAD: {"albedo": Color(0.38, 0.39, 0.43), "accent": Color(0.38, 0.39, 0.43), "pattern": 6},
+	Tile.POND: {"albedo": Color(0.33, 0.66, 0.84), "accent": Color(0.62, 0.88, 0.97), "pattern": 7, "roughness": 0.1},
 }
+const SIDE_SOIL := Color(0.50, 0.33, 0.21)
 
 # Traced in photo pixels (1023 x 597).
 const BASIN_PX: Array[Vector2] = [
@@ -74,6 +78,10 @@ func _init() -> void:
 		quit(1)
 		return
 	lib = load(TILES_PATH)
+	if OS.get_cmdline_user_args().has("--tiles-only"):
+		print("Wrote %s" % TILES_PATH)
+		quit()
+		return
 
 	var level := _build_level(lib)
 	var packed := PackedScene.new()
@@ -92,13 +100,29 @@ func _init() -> void:
 func _build_tiles() -> MeshLibrary:
 	var shader: Shader = load(SHADER_PATH)
 	var lib := MeshLibrary.new()
-	for tile: int in TILE_COLORS:
+	for tile: int in TILE_STYLES:
+		var style: Dictionary = TILE_STYLES[tile]
 		var material := ShaderMaterial.new()
 		material.shader = shader
-		material.set_shader_parameter("albedo", TILE_COLORS[tile])
-		material.set_shader_parameter("roughness", 0.15 if tile == Tile.POND else 0.95)
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3.ONE
+		material.set_shader_parameter("albedo", style.albedo)
+		material.set_shader_parameter("albedo2", style.accent)
+		material.set_shader_parameter("pattern", style.pattern)
+		material.set_shader_parameter("top_band", style.get("band", 0.0))
+		material.set_shader_parameter("side_color", SIDE_SOIL)
+		material.set_shader_parameter("roughness", style.get("roughness", 0.95))
+		var mesh: PrimitiveMesh
+		if tile == Tile.HEDGE:
+			# Round bush; the GridMap cell still counts as solid for the voxelizer.
+			var sphere := SphereMesh.new()
+			sphere.radius = 0.6
+			sphere.height = 1.1
+			sphere.radial_segments = 16
+			sphere.rings = 8
+			mesh = sphere
+		else:
+			var box := BoxMesh.new()
+			box.size = Vector3.ONE
+			mesh = box
 		mesh.material = material
 		lib.create_item(tile)
 		lib.set_item_name(tile, String(Tile.keys()[tile]).capitalize())
@@ -180,7 +204,7 @@ func _save_preview(grid: GridMap, depths: PackedInt32Array) -> void:
 			for y in range(GROUND_Y + 1, WATER_LEVEL_Y - 1, -1):
 				var item := grid.get_cell_item(Vector3i(x, y, z))
 				if item != GridMap.INVALID_CELL_ITEM:
-					color = TILE_COLORS[item]
+					color = TILE_STYLES[item].albedo
 					break
 			image.set_pixel(x, z, color)
 	image.resize(SIZE_X * 8, SIZE_Z * 8, Image.INTERPOLATE_NEAREST)

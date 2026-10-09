@@ -16,7 +16,7 @@ public sealed class DOModel
         Grid = grid;
         Config = config;
         Environment = environment ?? new EnvironmentState();
-        Fountain = new FountainModel(grid, config);
+        Fountains = new FountainSet(grid, config);
 
         int n = grid.WaterCount;
         Do = new float[n];
@@ -42,7 +42,7 @@ public sealed class DOModel
     public VoxelGrid Grid { get; }
     public SimConfig Config { get; }
     public EnvironmentState Environment { get; }
-    public FountainModel Fountain { get; }
+    public FountainSet Fountains { get; }
 
     // Swapped every tick; re-read after Step().
     public float[] Do { get; private set; }
@@ -66,11 +66,11 @@ public sealed class DOModel
 
         SyncPumpZone();
         ApplySources(season, bloom);
-        Fountain.Apply(Do, season.DoSat);
+        Fountains.Apply(Do, season.DoSat);
         Clamp();
         Diffuse(Environment.Rain ? Config.RainDiffusionVMultiplier : 1f);
 
-        ComputeStats(Fountain.PowerKw * Config.TickHours);
+        ComputeStats(Fountains.PowerKw * Config.TickHours);
         Environment.Advance();
         TickCount++;
     }
@@ -120,15 +120,18 @@ public sealed class DOModel
 
     void SyncPumpZone()
     {
-        int version = Fountain.IsActive ? Fountain.ZoneVersion : -2;
+        int version = Fountains.Version;
         if (version == _appliedZoneVersion) return;
         _appliedZoneVersion = version;
 
         Array.Fill(_dvMultiplier, 1f);
-        if (!Fountain.IsActive) return;
-        foreach (var column in Fountain.PumpZoneColumns)
-            foreach (int cell in column)
-                _dvMultiplier[cell] = Config.PumpZoneDiffusionVMultiplier;
+        foreach (var unit in Fountains.Units)
+        {
+            if (!unit.IsActive) continue;
+            foreach (var column in unit.PumpZoneColumns)
+                foreach (int cell in column)
+                    _dvMultiplier[cell] = Config.PumpZoneDiffusionVMultiplier;
+        }
     }
 
     // Explicit anisotropic diffusion; per-link coefficients are symmetric so total DO is conserved.
@@ -193,7 +196,7 @@ public sealed class DOModel
             BottomMeanDo: bottomCount > 0 ? (float)(bottomSum / bottomCount) : 0f,
             TotalDoKg: (float)(sum * Config.CellVolumeM3 * 1e-3),
             HypoxicFraction: (float)hypoxic / n,
-            PowerKw: Fountain.PowerKw,
+            PowerKw: Fountains.PowerKw,
             EnergyKwh: energyKwh);
     }
 }

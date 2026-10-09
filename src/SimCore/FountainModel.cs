@@ -9,12 +9,14 @@ public sealed class FountainModel
     readonly List<int[]> _pumpZone = [];
     readonly List<int> _sprayFootprint = [];
 
-    public FountainModel(VoxelGrid grid, SimConfig config)
+    public FountainModel(VoxelGrid grid, SimConfig config, int id = 0)
     {
         _grid = grid;
         _config = config;
+        Id = id;
     }
 
+    public int Id { get; }
     public int PumpCell { get; private set; } = -1;
     public int SprayerCell { get; private set; } = -1;
     public float Lpm { get; private set; }
@@ -24,6 +26,8 @@ public sealed class FountainModel
 
     public IReadOnlyList<int[]> PumpZoneColumns => _pumpZone;
     public IReadOnlyList<int> SprayFootprint => _sprayFootprint;
+
+    internal Action? Changed;
 
     public float PumpZoneRadius => 1f + Lpm / _config.PumpZoneLpmPerRadius;
     public float SprayRadius => 1f + Lpm / _config.SprayLpmPerRadius;
@@ -132,6 +136,7 @@ public sealed class FountainModel
                 if (top >= 0) _sprayFootprint.Add(top);
             }
         }
+        Changed?.Invoke();
     }
 
     IEnumerable<(int X, int Z)> ColumnsWithin(int cx, int cz, float radius)

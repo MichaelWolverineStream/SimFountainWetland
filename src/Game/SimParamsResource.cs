@@ -59,12 +59,9 @@ public partial class SimParamsResource : Resource
     [Export] public float PumpZoneDiffusionVMultiplier { get; set; } = D.PumpZoneDiffusionVMultiplier;
     [Export] public int MaxAdvectionSubsteps { get; set; } = D.MaxAdvectionSubsteps;
 
-    [ExportGroup("Scoring")]
+    [ExportGroup("Statistics")]
     [Export] public float HypoxiaThreshold { get; set; } = D.HypoxiaThreshold;
-    [Export] public float TargetMeanDo { get; set; } = D.TargetMeanDo;
-    [Export] public float MaxHypoxicFraction { get; set; } = D.MaxHypoxicFraction;
     [Export] public int WindowTicks { get; set; } = D.WindowTicks;
-    [Export] public int RequiredPassDays { get; set; } = D.RequiredPassDays;
 
     public SimConfig ToConfig() => new()
     {
@@ -105,10 +102,7 @@ public partial class SimParamsResource : Resource
         PumpZoneDiffusionVMultiplier = PumpZoneDiffusionVMultiplier,
         MaxAdvectionSubsteps = MaxAdvectionSubsteps,
         HypoxiaThreshold = HypoxiaThreshold,
-        TargetMeanDo = TargetMeanDo,
-        MaxHypoxicFraction = MaxHypoxicFraction,
         WindowTicks = WindowTicks,
-        RequiredPassDays = RequiredPassDays,
     };
 
     static Vector3 ToVector(SeasonParams s) => new(s.DoSat, s.Theta, s.PhotoperiodHours);

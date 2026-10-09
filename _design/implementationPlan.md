@@ -160,7 +160,7 @@ Dependencies: Phase 0 blocks everything. Phases 1 and 2 run in parallel. Phase 3
    - Stats: mean, min, total kg, hypoxic %, 24 h mean, depth-profile bars.
    - Results panel: baseline vs fountain, PASS/FAIL, kWh/day, ΔDO/kWh.
    - **As built:** no `hud.tscn`; `hud.gd` is a `CanvasLayer` on `main.tscn` that builds its controls in code and only emits intent signals. Adds a cross-section panel, a colour legend and a target summary.
-3. Optional: sun angle follows the simulated hour. **Done** (`main.gd::_update_sun`).
+3. Optional: sun angle follows the simulated hour. **Done** (first `main.gd::_update_sun`, now `day_night.gd`, see Phase 8).
 
 ### Phase 7 — Balancing
 
@@ -195,6 +195,50 @@ Real-level calibration (7623 water cells; pump in the deepest column, sprayer 1 
 
 Pipe length matters: a sprayer 8 cells from the pump needs 3.2 kW instead of 1.8 kW at 2000 LPM. Open questions: the spray position barely changes DO (only the pump zone does), and bloom may be too hard.
 
+### Phase 8 — Readability, camera and look
+
+1. **HUD size:**
+   - Base fonts are 20/17/22/24/44 px.
+   - A **UI size** option (0.85×–1.4×) sets `content_scale_factor` and is saved in `user://settings.cfg`.
+   - On high-DPI screens `main.gd::_fit_window_to_screen` scales the window size by the screen scale.
+   - Panels use `MOUSE_FILTER_STOP` so clicks on the HUD don't reach the 3D view.
+2. **Camera:**
+   - `orbit_camera.gd` handles the mouse wheel in `_unhandled_input`, trackpad scroll (`InputEventPanGesture`: zoom, plus orbit on x) and pinch (`InputEventMagnifyGesture`).
+   - Option+drag orbits, Shift+drag pans; `placement_tool.gd` lets these clicks through.
+   - There are key bindings and Home resets the view.
+   - The default framing is distance 84, pitch 42°.
+3. **Look:**
+   - `build_level.gd` `TILE_STYLES` gives bevelled, vertex-coloured tiles; `--tiles-only` rebuilds only `tiles.tres`.
+   - Props are built in code by `mesh_kit.gd` and scattered at runtime by `level_decor.gd` as MultiMeshes per prop. They are not in the GridMap, because the voxelizer treats every cell as solid.
+   - `ducks.gd` adds a mother duck and ducklings that steer away from the shore and the fountain.
+   - `day_night.gd` drives the sun, the moon, the sky palette and the ambient light from the simulated hour, and switches fireflies on at night.
+   - `do_voxel.gdshader` has a Nature view: global `water_view`, toggled with `V` or the HUD.
+   - The environment uses AgX, SSAO and glow. The plinth sits on a grid floor.
+4. **Slicing extras:**
+   - Small props and particles are cut by their instance origin.
+   - Large meshes (the pump-zone ring) set `clip_pixels` on `particle.gdshader` to cut per fragment and clip to the grid's xz rectangle.
+   - `slice_controller.gd` trims the plinth to the kept side.
+5. **Verification:**
+   - `smoke_test.gd` now also checks the camera input, decor, ducks, night fireflies and the water view toggle, and exits 1 if any check fails.
+   - `screenshot.gd` saves overview, nature, close-up, night and slice views.
+
+### Phase 9 — Baseline comparison, many fountains, more world detail
+
+This phase replaces the pass/fail scoring of Phase 6 (the target, the pass streak, `Scoring.cs` and its tests are gone).
+
+1. **Compare instead of pass/fail:**
+   - The game always runs live. **Set baseline** and **Compare with baseline** each reset the simulation, fast-forward until the daily mean DO is steady (`settle_min_days` 3 to `settle_max_days` 14) and take a snapshot of the last 24 h (`DailyStats` / `DaySummary` in SimCore). **Stop** cancels a measurement.
+   - A baseline can be any setup: environment only (Summer vs Autumn), fountains only, or both.
+   - `report_panel.gd` opens centred over the game: scenario cards, what changed, headline effects, `profile_compare.gd` (per-layer 24 h mean DO, baseline vs comparison, with the hypoxia line), and a table of all numbers with deltas. **Make this the new baseline** and **Show last report** reuse runs.
+2. **Many fountains:**
+   - `FountainSet` in SimCore holds up to 8 units, each with its own pump, sprayer and flow. `SimulationNode` exposes them by id (`AddFountain`, `PlaceFountainPump`, `PlaceFountainSprayer`, `SetFountainLpm`, `RemoveFountain`, `ClearFountains`, `GetFountains`, `GetFountainTotals`).
+   - The HUD lists the units; clicks on a pump or sprayer select its unit. `fountain_unit_visual.gd` draws one unit; `fountain_visuals.gd` keeps one per id.
+3. **World detail:**
+   - `level_decor.gd` adds wheat, hay bales and fences on fields, benches, lamp posts (glowing at night) and a signpost along paths, a jetty, shrubs, berries on hedges, mushrooms and logs under trees, pebbles and shore foam (Nature view only). It also records spots for the critters. Wind scales the sway.
+   - `critters.gd`: herons, frogs on lily pads, turtles on shore rocks, a leaping fish with splashes, butterflies and dragonflies (wing flap in `decor.gdshader`).
+   - `sky_details.gd`: clouds drifting with the wind outside the level (dither fade in `cloud.gdshader` when between the camera and the level) and a star dome (`star.gdshader`). `day_night.gd` emits `daylight_changed`.
+4. **Verification:** `smoke_test.gd` covers measurements, the report, environment-only comparisons (`compare_season=`), many units (`units=`), the unit limit and the new scenery. `screenshot.gd` adds report, jetty, field, pond and heron views.
+
 ## 5. Verification
 
 1. **Phase 0:** `dotnet build SimFountainWetland.sln`; `dotnet test`; Godot run prints `.NET 10.0.x`.
@@ -215,7 +259,7 @@ Pipe length matters: a sprayer 8 cells from the pump needs 3.2 kW instead of 1.8
 4. **Manual:** level loads and reports water-cell count; stratification forms; slice is a clean cut; placement snaps; kW responds to depth and LPM; PASS/FAIL updates; 60 FPS at 16×.
 5. **Automated in-engine (Godot .NET):**
    - `$GODOT4 --headless --path . --script res://tools/smoke_test.gd -- 1000 2000 3000 [season=1 wind=0 bloom=0 sprayer_distance=1 PumpZoneLpmPerRadius=100]` runs the whole game flow and prints the results.
-   - `$GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw` saves an overview and a cross-section screenshot.
+   - `$GODOT4 --path . --script res://tools/screenshot.gd -- /tmp/sfw` saves overview, nature, close-up, night and cross-section screenshots.
 
 ## 6. Further considerations
 

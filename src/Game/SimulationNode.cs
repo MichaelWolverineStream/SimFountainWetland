@@ -1,16 +1,17 @@
 using System;
 using Godot;
 using SimCore;
+using GArray = Godot.Collections.Array;
 using GDict = Godot.Collections.Dictionary;
 
 namespace SimFountainWetland.Game;
 
-// Owns the voxel grid, DO model and scoring. GDScript drives it through the PascalCase API below.
+// Owns the voxel grid, DO model and daily statistics. GDScript drives it through the PascalCase API below.
 // Positions are in Level-local space; columns use GridMap (x, z) coordinates.
 public partial class SimulationNode : Node
 {
     [Signal] public delegate void TicksAdvancedEventHandler();
-    [Signal] public delegate void DayCompletedEventHandler(GDict result);
+    [Signal] public delegate void DayCompletedEventHandler(GDict summary);
     [Signal] public delegate void FastForwardProgressEventHandler(int done, int total);
     [Signal] public delegate void FastForwardFinishedEventHandler();
 
@@ -22,7 +23,7 @@ public partial class SimulationNode : Node
 
     VoxelGrid? _grid;
     DOModel? _model;
-    Scoring? _scoring;
+    DailyStats? _daily;
     Vector3I _origin;
     int _ticksPerTimeout = 1;
     int _fastForwardDone;
@@ -35,9 +36,7 @@ public partial class SimulationNode : Node
     public int TicksPerTimeout => _ticksPerTimeout;
     public bool IsFastForwarding => _fastForwardTotal > 0;
     public int WaterCellCount => _grid?.WaterCount ?? 0;
-    public float TargetMeanDo => _model?.Config.TargetMeanDo ?? 0f;
-    public float MaxHypoxicFraction => _model?.Config.MaxHypoxicFraction ?? 0f;
-    public int RequiredPassDays => _model?.Config.RequiredPassDays ?? 0;
+    public float HypoxiaThreshold => _model?.Config.HypoxiaThreshold ?? 0f;
     public float MaxLpm => _model?.Config.MaxLpm ?? 0f;
 
     public override void _Ready()
@@ -83,7 +82,7 @@ public partial class SimulationNode : Node
         {
             _grid = GridMapVoxelizer.Voxelize(gridMap, seed, waterLevelY, config.CellSizeY, out _origin);
             _model = new DOModel(_grid, config);
-            _scoring = new Scoring(config);
+            _daily = new DailyStats(config, _grid.LayerCount);
         }
         catch (BasinLeakException e)
         {
@@ -122,13 +121,13 @@ public partial class SimulationNode : Node
 
     void StepOnce()
     {
-        if (_model == null || _scoring == null) return;
+        if (_model == null || _daily == null) return;
         _model.Step();
         var stats = _model.Stats;
         _todayKwh += stats.EnergyKwh;
         _totalKwh += stats.EnergyKwh;
         if (stats.Hour == 23) _todayKwh = 0;
-        if (_scoring.Add(stats) is { } day)
+        if (_daily.Add(stats, _model.LayerMeans) is { } day)
             EmitSignal(SignalName.DayCompleted, ToDict(day));
     }
 
@@ -159,18 +158,20 @@ public partial class SimulationNode : Node
 
     public void ResetSimulation()
     {
-        if (_model == null || _scoring == null) return;
+        if (_model == null || _daily == null) return;
         StopFastForward();
         _model.Reset();
-        _scoring.Reset();
+        _daily.Reset();
         _todayKwh = 0;
         _totalKwh = 0;
         Publish();
     }
 
-    public void ResetScoring() => _scoring?.Reset();
+    public void ResetDailyStats() => _daily?.Reset();
 
-    public bool IsSteady(float tolerance) => _scoring?.IsSteady(tolerance) ?? false;
+    public bool IsSteady(float tolerance) => _daily?.IsSteady(tolerance) ?? false;
+
+    public GDict GetLastDay() => _daily?.LastDay is { } day ? ToDict(day) : new GDict();
 
     // ---- Environment ----
 
@@ -184,7 +185,7 @@ public partial class SimulationNode : Node
         env.AlgaeBloom = bloom;
     }
 
-    // ---- Fountain ----
+    // ---- Fountains ----
 
     public bool IsWaterColumn(int x, int z) => _grid != null && _grid.ColumnTop(x - _origin.X, z - _origin.Z) >= 0;
 
@@ -192,31 +193,63 @@ public partial class SimulationNode : Node
 
     public Vector3 GetColumnBottomCenter(int x, int z) => CellCenter(_grid?.ColumnBottom(x - _origin.X, z - _origin.Z) ?? -1);
 
-    public bool PlacePump(int x, int z) => _model?.Fountain.PlacePump(x - _origin.X, z - _origin.Z) ?? false;
+    public int AddFountain() => _model?.Fountains.Add().Id ?? -1;
 
-    public bool PlaceSprayer(int x, int z) => _model?.Fountain.PlaceSprayer(x - _origin.X, z - _origin.Z) ?? false;
+    public bool RemoveFountain(int id) => _model?.Fountains.Remove(id) ?? false;
 
-    public void SetLpm(float lpm) => _model?.Fountain.SetLpm(lpm);
+    public void ClearFountains() => _model?.Fountains.Clear();
 
-    public void ClearFountain() => _model?.Fountain.Clear();
+    public bool PlaceFountainPump(int id, int x, int z) =>
+        _model?.Fountains.Get(id)?.PlacePump(x - _origin.X, z - _origin.Z) ?? false;
 
-    public GDict GetFountainInfo()
+    public bool PlaceFountainSprayer(int id, int x, int z) =>
+        _model?.Fountains.Get(id)?.PlaceSprayer(x - _origin.X, z - _origin.Z) ?? false;
+
+    public void SetFountainLpm(int id, float lpm) => _model?.Fountains.Get(id)?.SetLpm(lpm);
+
+    public GArray GetFountains()
     {
-        var info = new GDict();
-        if (_model == null) return info;
-        var f = _model.Fountain;
-        info["has_pump"] = f.PumpCell >= 0;
-        info["has_sprayer"] = f.SprayerCell >= 0;
-        info["active"] = f.IsActive;
-        info["pump_position"] = CellCenter(f.PumpCell);
-        info["sprayer_position"] = CellCenter(f.SprayerCell);
-        info["lpm"] = f.Lpm;
-        info["head_m"] = f.HeadM;
-        info["power_kw"] = f.PowerKw;
-        info["pipe_length_m"] = f.PipeLengthM;
-        info["pump_zone_radius"] = f.PumpZoneRadius;
-        info["spray_radius"] = f.SprayRadius;
-        return info;
+        var list = new GArray();
+        if (_model == null) return list;
+        foreach (var f in _model.Fountains.Units)
+        {
+            list.Add(new GDict
+            {
+                ["id"] = f.Id,
+                ["has_pump"] = f.PumpCell >= 0,
+                ["has_sprayer"] = f.SprayerCell >= 0,
+                ["active"] = f.IsActive,
+                ["pump_position"] = CellCenter(f.PumpCell),
+                ["sprayer_position"] = CellCenter(f.SprayerCell),
+                ["pump_column"] = ColumnOf(f.PumpCell),
+                ["sprayer_column"] = ColumnOf(f.SprayerCell),
+                ["lpm"] = f.Lpm,
+                ["head_m"] = f.HeadM,
+                ["power_kw"] = f.PowerKw,
+                ["pipe_length_m"] = f.PipeLengthM,
+                ["pump_zone_radius"] = f.PumpZoneRadius,
+                ["spray_radius"] = f.SprayRadius,
+            });
+        }
+        return list;
+    }
+
+    public GDict GetFountainTotals()
+    {
+        int count = 0, active = 0;
+        float lpm = 0f, power = 0f;
+        if (_model != null)
+        {
+            foreach (var f in _model.Fountains.Units)
+            {
+                count++;
+                if (!f.IsActive) continue;
+                active++;
+                lpm += f.Lpm;
+                power += f.PowerKw;
+            }
+        }
+        return new GDict { ["count"] = count, ["active"] = active, ["total_lpm"] = lpm, ["power_kw"] = power };
     }
 
     // ---- Stats ----
@@ -224,7 +257,7 @@ public partial class SimulationNode : Node
     public GDict GetStats()
     {
         var d = new GDict();
-        if (_model == null || _scoring == null) return d;
+        if (_model == null || _daily == null) return d;
         var s = _model.Stats;
         d["tick"] = s.Tick;
         d["day"] = s.Day;
@@ -239,10 +272,8 @@ public partial class SimulationNode : Node
         d["power_kw"] = s.PowerKw;
         d["today_kwh"] = _todayKwh;
         d["total_kwh"] = _totalKwh;
-        d["rolling_mean_do"] = _scoring.RollingMeanDo;
-        d["rolling_hypoxic_fraction"] = _scoring.RollingHypoxicFraction;
-        d["pass_streak_days"] = _scoring.PassStreakDays;
-        d["passed"] = _scoring.Passed;
+        d["rolling_mean_do"] = _daily.RollingMeanDo;
+        d["rolling_hypoxic_fraction"] = _daily.RollingHypoxicFraction;
         d["water_cells"] = _grid?.WaterCount ?? 0;
         return d;
     }
@@ -267,12 +298,26 @@ public partial class SimulationNode : Node
 
     Vector3I ToMap(Int3 p) => new(p.X + _origin.X, p.Y + _origin.Y, p.Z + _origin.Z);
 
-    static GDict ToDict(DayResult day) => new()
+    Vector2I ColumnOf(int waterIndex)
+    {
+        if (_grid == null || waterIndex < 0) return new Vector2I(-1, -1);
+        var p = ToMap(_grid.WaterCoords(waterIndex));
+        return new Vector2I(p.X, p.Z);
+    }
+
+    static GDict ToDict(DaySummary day) => new()
     {
         ["day"] = day.Day,
         ["mean_do"] = day.MeanDo,
+        ["min_do"] = day.MinDo,
+        ["max_do"] = day.MaxDo,
+        ["surface_mean_do"] = day.SurfaceMeanDo,
+        ["bottom_mean_do"] = day.BottomMeanDo,
         ["hypoxic_fraction"] = day.HypoxicFraction,
+        ["total_do_kg"] = day.TotalDoKg,
         ["energy_kwh"] = day.EnergyKwh,
-        ["passed"] = day.Passed,
+        ["layer_mean"] = day.LayerMean,
+        ["layer_min"] = day.LayerMin,
+        ["layer_max"] = day.LayerMax,
     };
 }

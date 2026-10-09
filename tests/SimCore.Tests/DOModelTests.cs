@@ -124,9 +124,10 @@ public class DOModelTests
 
         var baseline = Create();
         var withFountain = Create();
-        Assert.True(withFountain.Fountain.PlacePump(8, 8));
-        Assert.True(withFountain.Fountain.PlaceSprayer(8, 8));
-        withFountain.Fountain.SetLpm(1000f);
+        var unit = withFountain.Fountains.Add();
+        Assert.True(unit.PlacePump(8, 8));
+        Assert.True(unit.PlaceSprayer(8, 8));
+        unit.SetLpm(1000f);
 
         TestGrids.RunDays(baseline, 3);
         TestGrids.RunDays(withFountain, 3);
@@ -144,9 +145,10 @@ public class DOModelTests
             var m = new DOModel(TestGrids.Box(12, 10, 6), new SimConfig());
             m.Environment.Season = Season.Summer;
             m.Environment.AlgaeBloom = true;
-            m.Fountain.PlacePump(5, 5);
-            m.Fountain.PlaceSprayer(3, 4);
-            m.Fountain.SetLpm(800f);
+            var unit = m.Fountains.Add();
+            unit.PlacePump(5, 5);
+            unit.PlaceSprayer(3, 4);
+            unit.SetLpm(800f);
             for (int t = 0; t < 100; t++) m.Step();
             return m.Do;
         }
@@ -159,9 +161,10 @@ public class DOModelTests
     {
         var model = new DOModel(TestGrids.Box(60, 60, 16), new SimConfig());
         Assert.True(model.Grid.WaterCount > 50_000);
-        model.Fountain.PlacePump(30, 30);
-        model.Fountain.PlaceSprayer(30, 30);
-        model.Fountain.SetLpm(2000f);
+        var unit = model.Fountains.Add();
+        unit.PlacePump(30, 30);
+        unit.PlaceSprayer(30, 30);
+        unit.SetLpm(2000f);
 
         var watch = System.Diagnostics.Stopwatch.StartNew();
         for (int t = 0; t < 100; t++) model.Step();

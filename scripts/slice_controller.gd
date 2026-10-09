@@ -5,6 +5,8 @@ extends Node3D
 
 @export var frame_color := Color(1.0, 0.55, 0.1)
 @export var frame_thickness := 0.15
+## Optional box under the level (BoxMesh) trimmed to the visible side of the cut.
+@export var plinth: MeshInstance3D
 
 var enabled := false
 var cell_x := 0
@@ -13,9 +15,13 @@ var flip := false
 var _frame: Array[MeshInstance3D] = []
 var _y_range := Vector2(0.0, 14.0)
 var _z_range := Vector2(0.0, 64.0)
+var _plinth_x := Vector2.ZERO
 
 
 func _ready() -> void:
+	if plinth:
+		var half := (plinth.mesh as BoxMesh).size.x * 0.5
+		_plinth_x = Vector2(plinth.position.x - half, plinth.position.x + half)
 	var material := StandardMaterial3D.new()
 	material.albedo_color = frame_color
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -50,6 +56,15 @@ func _apply() -> void:
 	RenderingServer.global_shader_parameter_set("slice_x", plane_x if enabled else 1.0e6)
 	RenderingServer.global_shader_parameter_set("slice_enabled", enabled)
 	RenderingServer.global_shader_parameter_set("slice_flip", flip)
+
+	if plinth:
+		var lo := _plinth_x.x
+		var hi := _plinth_x.y
+		if enabled:
+			lo = plane_x if flip else lo
+			hi = hi if flip else plane_x
+		plinth.scale.x = (hi - lo) / (_plinth_x.y - _plinth_x.x)
+		plinth.position.x = (lo + hi) * 0.5
 
 	visible = enabled
 	if _frame.is_empty():

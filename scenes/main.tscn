@@ -12,12 +12,18 @@
 [ext_resource type="Script" path="res://scripts/fountain_visuals.gd" id="10_fountain"]
 [ext_resource type="Script" path="res://scripts/slice_controller.gd" id="11_slice"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="12_hud"]
+[ext_resource type="Script" path="res://scripts/level_decor.gd" id="13_decor"]
+[ext_resource type="Script" path="res://scripts/ducks.gd" id="14_ducks"]
+[ext_resource type="Script" path="res://scripts/day_night.gd" id="15_day_night"]
+[ext_resource type="Shader" path="res://shaders/grid_floor.gdshader" id="16_floor"]
+[ext_resource type="Script" path="res://scripts/critters.gd" id="17_critters"]
+[ext_resource type="Script" path="res://scripts/sky_details.gd" id="18_sky"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_main"]
-sky_top_color = Color(0.32, 0.52, 0.78, 1)
-sky_horizon_color = Color(0.7, 0.77, 0.84, 1)
-ground_bottom_color = Color(0.28, 0.3, 0.27, 1)
-ground_horizon_color = Color(0.7, 0.77, 0.84, 1)
+sky_top_color = Color(0.36, 0.6, 0.92, 1)
+sky_horizon_color = Color(0.75, 0.86, 0.95, 1)
+ground_bottom_color = Color(0.3, 0.34, 0.38, 1)
+ground_horizon_color = Color(0.75, 0.86, 0.95, 1)
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = SubResource("ProceduralSkyMaterial_main")
@@ -26,8 +32,33 @@ sky_material = SubResource("ProceduralSkyMaterial_main")
 background_mode = 2
 sky = SubResource("Sky_main")
 ambient_light_source = 3
-ambient_light_energy = 0.7
-tonemap_mode = 2
+ambient_light_color = Color(0.36, 0.44, 0.7, 1)
+ambient_light_energy = 0.8
+tonemap_mode = 4
+ssao_enabled = true
+ssao_radius = 2.0
+ssao_intensity = 1.5
+glow_enabled = true
+glow_intensity = 0.6
+glow_blend_mode = 1
+adjustment_enabled = true
+adjustment_saturation = 1.15
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plinth"]
+albedo_color = Color(0.45, 0.3, 0.2, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_plinth"]
+material = SubResource("StandardMaterial3D_plinth")
+size = Vector3(100, 1.2, 68)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_floor"]
+render_priority = 0
+shader = ExtResource("16_floor")
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+material = SubResource("ShaderMaterial_floor")
+size = Vector2(3000, 3000)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_voxels"]
 render_priority = 0
@@ -45,6 +76,29 @@ environment = SubResource("Environment_main")
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.8192, -0.4699, 0.329, 0, 0.5736, 0.8192, -0.5736, -0.6711, 0.4699, 0, 40, 0)
 shadow_enabled = true
+shadow_blur = 1.5
+directional_shadow_max_distance = 300.0
+
+[node name="Moon" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.7071, 0.7071, 0, -0.7071, 0.7071, 0, 40, 0)
+light_color = Color(0.62, 0.72, 1, 1)
+light_energy = 0.0
+visible = false
+
+[node name="DayNight" type="Node" parent="." node_paths=PackedStringArray("sun", "moon", "world_environment")]
+script = ExtResource("15_day_night")
+sun = NodePath("../Sun")
+moon = NodePath("../Moon")
+world_environment = NodePath("../WorldEnvironment")
+
+[node name="Plinth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 48, -0.6, 32)
+mesh = SubResource("BoxMesh_plinth")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 48, -1.2, 32)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_floor")
 
 [node name="Level" parent="." instance=ExtResource("2_level")]
 
@@ -57,6 +111,24 @@ script = ExtResource("4_sim")
 Level = NodePath("../Level")
 Renderer = NodePath("../WaterVoxels")
 Params = ExtResource("5_params")
+
+[node name="Decor" type="Node3D" parent="." node_paths=PackedStringArray("level", "simulation")]
+script = ExtResource("13_decor")
+level = NodePath("../Level")
+simulation = NodePath("../Simulation")
+
+[node name="Ducks" type="Node3D" parent="." node_paths=PackedStringArray("simulation")]
+script = ExtResource("14_ducks")
+simulation = NodePath("../Simulation")
+
+[node name="Critters" type="Node3D" parent="." node_paths=PackedStringArray("simulation", "decor")]
+script = ExtResource("17_critters")
+simulation = NodePath("../Simulation")
+decor = NodePath("../Decor")
+
+[node name="SkyDetails" type="Node3D" parent="." node_paths=PackedStringArray("simulation")]
+script = ExtResource("18_sky")
+simulation = NodePath("../Simulation")
 
 [node name="Camera" type="Camera3D" parent="."]
 current = true
@@ -71,8 +143,9 @@ camera = NodePath("../Camera")
 [node name="FountainVisuals" type="Node3D" parent="."]
 script = ExtResource("10_fountain")
 
-[node name="SliceController" type="Node3D" parent="."]
+[node name="SliceController" type="Node3D" parent="." node_paths=PackedStringArray("plinth")]
 script = ExtResource("11_slice")
+plinth = NodePath("../Plinth")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("12_hud")

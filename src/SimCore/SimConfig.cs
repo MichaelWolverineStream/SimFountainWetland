@@ -51,17 +51,14 @@ public sealed class SimConfig
     public float PipeFrictionPerMeter { get; set; } = 0.04f;
     public float PipeReferenceLpm { get; set; } = 1000f;
     public float MaxLpm { get; set; } = 3000f;
-    // Calibrated on the real level: Summer/Calm passes at ~2500 L/min, Spring/Autumn at ~1500 L/min.
+    // Calibrated on the real level: one unit lifts Summer/Calm to ~6 mg/L at ~2500 L/min, Spring/Autumn at ~1500 L/min.
     public float PumpZoneLpmPerRadius { get; set; } = 100f;
     public float SprayLpmPerRadius { get; set; } = 1000f;
     public float PumpZoneDiffusionVMultiplier { get; set; } = 5f;
     public int MaxAdvectionSubsteps { get; set; } = 16;
 
     public float HypoxiaThreshold { get; set; } = 2f;
-    public float TargetMeanDo { get; set; } = 6f;
-    public float MaxHypoxicFraction { get; set; } = 0.10f;
     public int WindowTicks { get; set; } = 24;
-    public int RequiredPassDays { get; set; } = 3;
 
     public float CellVolumeM3 => CellSizeXZ * CellSizeXZ * CellSizeY;
 
